@@ -8,6 +8,15 @@ As enterprises scale AI-driven financial processes, traditional "Post-Audit" fra
 
 The Mission: Transition from reactive manual auditing to a preemptive, automated "Velocity-Gating" strategy to protect $1.19M in at-risk capital.
 
+## 💾 Data & Accessibility
+> **Note on Data Volume:** This project utilizes high-volume datasets (approx. 730MB total). Due to GitHub storage limits, the raw data files are excluded from this repository via `.gitignore`.
+
+### 🔗 Data Sources:
+1.  **Financial Risk Insights (2020-2025):** [Kaggle: Big 4 Financial Risk](https://www.kaggle.com/datasets/atharvasoundankar/big-4-financial-risk-insights-2020-2025) - *Used for operational benchmarking and workload analysis.*
+2.  **Bank Account Fraud (Suite):** [Feedzai GitHub: Bank Account Fraud](https://github.com/feedzai/bank-account-fraud) - *Used for behavioral pattern extraction and fraud detection modeling.*
+
+* **Project Assets:** Large Alteryx (.yxdb) and Tableau (.hyper) extracts are hosted externally. Please contact the author for full access to raw database files.
+
 🎯 Project Objectives 
 Derived from core forensic audit requirements, this project was built to solve four specific challenges:
 
