@@ -12,7 +12,12 @@ As enterprises scale AI-driven financial processes, traditional "Post-Audit" fra
 ---
 
 ## 💾 Data & Accessibility
-> **Note on Data Volume:** This project utilizes high-volume datasets (approx. 730MB total). Due to GitHub storage limits, the raw data files are excluded from this repository via `.gitignore`.
+For the Project Case Study, SQL Queries, Alteryx Workflows, and 
+Interactive Tableau Screenshots, please visit the main GitHub repository:
+> ### 📂 Large File Repository (External)
+Due to GitHub’s file size constraints, the following high-volume assets are hosted on Google Drive:
+* **Processed Alteryx Outputs:** (2 files, 158MB each)
+👉 **[Access Large Project Assets Here](https://drive.google.com/drive/folders/1d_VfrOPAdfh32iHmGBcjiKuwK1x0yjhq?usp=sharing)**
 
 ### 🔗 Data Sources:
 1.  **Financial Risk Insights (2020-2025):** [Kaggle: Big 4 Financial Risk](https://www.kaggle.com/datasets/atharvasoundankar/big-4-financial-risk-insights-2020-2025) - *Used for operational benchmarking and workload analysis.*
