@@ -71,17 +71,24 @@ Derived from core forensic audit requirements, this project was built to solve f
 ├── 05_Excel_Analysis/      # ROI Validation and Financial Risk Models
 ├── 06_Tableau_Workbooks/   # Interactive dashboards and visual stories
 └── README.md               # Project overview and navigation
+```
+---
 
+## **🚀 Interactive Preview**
 
-🚀 Interactive Preview
-[View Interactive Story on Tableau Public](https://public.tableau.com/app/profile/hemangi7471/viz/ForensicRiskIntelligenceOptimizingAuditPerformanceAndCapitalProtection/Story1)
+> **[View Interactive Story on Tableau Public](https://public.tableau.com/app/profile/hemangi7471/vizzes)**
 
+---
 
+## **👤 Author**
 
-👤 Author
-   Hemangi Tandle
-   Dual-certified Data Analyst (Tableau & Oracle SQL) | Finance Specialist
-   Tableau Public: [Explore My Portfolio](https://public.tableau.com/app/profile/hemangi7471/vizzes)
+### **Hemangi Tandle**
+*Dual-certified Data Analyst (Tableau & Oracle SQL) | Data Analyst & BI Specialist*
+
+* **Tableau Public:** [Explore My Portfolio](https://public.tableau.com/app/profile/hemangi7471/vizzes)
+* **LinkedIn:** [Connect on LinkedIn](https://www.linkedin.com/in/hemangit/)
+
+---
    
    
    <img width="1370" height="1248" alt="storypoint-4" src="https://github.com/user-attachments/assets/d946e776-072f-4f9a-b2fd-3c76745adb1e" />
