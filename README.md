@@ -7,7 +7,7 @@
 ## 📖 Project Overview & Business Case
 As enterprises scale AI-driven financial processes, traditional "Post-Audit" frameworks fail to keep pace with modern Risk Velocity. This project investigates the intersection of AI adoption and forensic risk, identifying a critical "Primary Attack Window" where 68% of incidents occur within the first 10 days—a pace that manual audits cannot match.
 
-**The Mission:** Transition from reactive manual auditing to a preemptive, automated "Velocity-Gating" strategy to protect **$1.19M** in at-risk capital.
+**The Mission:** Transition from reactive manual auditing to a preemptive, automated "Velocity-Gating" strategy to protect **$1.20M** in at-risk capital.
 
 ---
 
