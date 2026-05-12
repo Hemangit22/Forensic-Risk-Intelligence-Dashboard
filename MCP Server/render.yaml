@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: forensic-risk-mcp
+    env: node
+    buildCommand: ""
+    startCommand: node server.js
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: PORT
+        value: 3000
