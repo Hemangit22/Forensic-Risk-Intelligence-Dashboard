@@ -79,7 +79,7 @@ async function callGemini(messages) {
     };
   });
 
-  const body = JSON.stringify({
+  const geminiBody = JSON.stringify({
     contents: geminiContents,
     generationConfig: {
       maxOutputTokens: 512,
@@ -96,7 +96,7 @@ async function callGemini(messages) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body),
+        "Content-Length": Buffer.byteLength(geminiBody),
       },
     };
 
@@ -136,7 +136,7 @@ async function callGemini(messages) {
       resolve({ ok: false, reply: "Network error: " + e.message });
     });
 
-    req.write(body);
+    req.write(geminiBody);
     req.end();
   });
 }
