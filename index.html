@@ -408,6 +408,9 @@ const inputEl = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
 let conversationHistory = [];
 
+// Debug: confirm server URL is loaded
+console.log('MCP_SERVER configured as:', MCP_SERVER);
+
 function askQuestion(q) {
   inputEl.value = q;
   sendMessage();
@@ -472,7 +475,7 @@ async function sendMessage() {
     conversationHistory.push({ role: 'assistant', content: reply });
   } catch (err) {
     removeTyping();
-    addMessage('assistant', 'The AI server is waking up — Render free tier sleeps after inactivity. Please wait 20–30 seconds and try again.');
+    addMessage('assistant', 'Error: ' + err.message + '. Server: ' + MCP_SERVER);
   }
   sendBtn.disabled = false;
 }
