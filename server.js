@@ -2,28 +2,14 @@
 
 /**
  * Forensic Risk Intelligence — MCP Server
- * Remote HTTP+SSE server for the portfolio chat widget.
- * Reads project files from GitHub and answers questions via Claude.
+ * Remote HTTP server for the portfolio chat widget.
  */
 
 const http = require("http");
 const https = require("https");
-const url = require("url");
 
 const PORT = process.env.PORT || 3000;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
-
-// GitHub raw base URL
-const GITHUB_RAW = "https://raw.githubusercontent.com/Hemangit22/Forensic-Risk-Intelligence-Dashboard/main";
-
-// Known files in the repo
-const REPO_FILES = [
-  { path: "README.md", label: "Project README & Overview" },
-  { path: "01_Documentation", label: "Documentation folder" },
-  { path: "04_SQL_Script", label: "SQL Scripts" },
-  { path: "05_Excel_Analysis", label: "Excel Analysis" },
-  { path: "06_Tableau_Workbooks", label: "Tableau Workbooks" },
-];
 
 const PROJECT_CONTEXT = `
 You are an expert AI assistant embedded in Hemangi Tandle's data analytics portfolio.
@@ -36,40 +22,29 @@ PROJECT SUMMARY:
 - Key finding: 68% of fraud incidents occur within the first 10 days (Primary Attack Window)
 
 DATASETS:
-1. Big 4 Financial Risk Insights (Kaggle, 2020-2025) — operational benchmarking
-2. Bank Account Fraud Suite (Feedzai GitHub) — behavioral fraud pattern extraction
+1. Big 4 Financial Risk Insights (Kaggle, 2020-2025) — operational benchmarking across Deloitte, PwC, EY, KPMG
+2. Bank Account Fraud Suite (Feedzai GitHub) — behavioral fraud pattern extraction and modeling
 
 PIPELINE:
-1. Alteryx — ETL: multi-source ingestion, cleansing, feature engineering (Maturity flags)
-2. SQL — Window functions & CTEs to calculate Time-to-Risk (TTR), risk segmentation by velocity/impact
+1. Alteryx — ETL: multi-source ingestion of 1M+ rows, complex joins, null remediation, temporal Maturity flag feature engineering
+2. SQL — Window functions and CTEs to calculate Time-to-Risk (TTR), risk segmentation by velocity and impact
 3. Excel — Risk-Return Frontier model, sensitivity analysis, $1,192,800 capital protection calculation
 4. Tableau — 4-Chapter executive story: Risk Velocity, Operational Efficiency, Resource Optimization, Capital Protection
 
 KEY FINDINGS:
-- 1.0-Day Gap: Average TTR of 1.0 day proves manual audits are too slow
-- 10-Day Threshold: optimal automated intervention point
-- Efficiency Paradox: high workload firms (e.g. Deloitte) have highest risk exposure
+- 1.0-Day Gap: Average TTR of 1.0 day proves manual audits are too slow to catch fraud
+- 10-Day Threshold: 68% of incidents occur in first 10 days — optimal automated intervention point
+- Efficiency Paradox: high workload firms like Deloitte have the highest risk exposure
 
 LINKS:
-- Tableau: https://public.tableau.com/app/profile/hemangi7471/viz/ForensicRiskIntelligenceOptimizingAuditPerformanceAndCapitalProtection/Story1
-- GitHub: https://github.com/Hemangit22/Forensic-Risk-Intelligence-Dashboard
-- Large files: https://drive.google.com/drive/folders/1d_VfrOPAdfh32iHmGBcjiKuwK1x0yjhq
+- Tableau Story: https://public.tableau.com/app/profile/hemangi7471/viz/ForensicRiskIntelligenceOptimizingAuditPerformanceAndCapitalProtection/Story1
+- GitHub Repo: https://github.com/Hemangit22/Forensic-Risk-Intelligence-Dashboard
+- Large files (Google Drive): https://drive.google.com/drive/folders/1d_VfrOPAdfh32iHmGBcjiKuwK1x0yjhq
 
 Answer questions knowledgeably, enthusiastically, and concisely. Direct visitors to the Tableau or GitHub links when relevant.
 `;
 
-// ── HELPERS ──────────────────────────────────────────────────────────────────
-
-function fetchGitHubFile(filePath) {
-  return new Promise((resolve) => {
-    const fileUrl = GITHUB_RAW + "/" + filePath;
-    https.get(fileUrl, (res) => {
-      let data = "";
-      res.on("data", (chunk) => (data += chunk));
-      res.on("end", () => resolve(res.statusCode === 200 ? data : null));
-    }).on("error", () => resolve(null));
-  });
-}
+// ── HELPERS ───────────────────────────────────────────────────────────────────
 
 function setCORS(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -88,18 +63,23 @@ function readBody(req) {
   });
 }
 
-async function callClaude(messages, systemPrompt) {
+async function callClaude(messages) {
   if (!ANTHROPIC_API_KEY) {
-    return "AI responses require an Anthropic API key. Please configure ANTHROPIC_API_KEY in the server environment.";
+    return { ok: false, reply: "API key not configured on server." };
   }
+
+  const body = JSON.stringify({
+    model: "claude-haiku-4-5",
+    max_tokens: 1024,
+    system: PROJECT_CONTEXT,
+    messages: messages,
+  });
+
+  console.log("Calling Claude with", messages.length, "message(s)...");
+  console.log("Request body length:", body.length);
+
   return new Promise((resolve) => {
-    const body = JSON.stringify({
-      model: "claude-sonnet-4-5",
-      max_tokens: 1000,
-      system: systemPrompt || PROJECT_CONTEXT,
-      messages,
-    });
-    const req = https.request({
+    const options = {
       hostname: "api.anthropic.com",
       path: "/v1/messages",
       method: "POST",
@@ -109,19 +89,45 @@ async function callClaude(messages, systemPrompt) {
         "anthropic-version": "2023-06-01",
         "Content-Length": Buffer.byteLength(body),
       },
-    }, (res) => {
+    };
+
+    const req = https.request(options, (res) => {
       let data = "";
-      res.on("data", (c) => (data += c));
+      console.log("Claude API status:", res.statusCode);
+      res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
+        console.log("Claude raw response:", data.substring(0, 300));
         try {
           const parsed = JSON.parse(data);
-          resolve(parsed.content?.[0]?.text || "No response from Claude.");
-        } catch {
-          resolve("Error parsing Claude response.");
+          if (parsed.error) {
+            console.error("Claude API error:", parsed.error);
+            resolve({ ok: false, reply: "Claude API error: " + parsed.error.message });
+            return;
+          }
+          if (parsed.content && parsed.content.length > 0) {
+            const textBlock = parsed.content.find(b => b.type === "text");
+            if (textBlock) {
+              resolve({ ok: true, reply: textBlock.text });
+            } else {
+              console.error("No text block found in content:", JSON.stringify(parsed.content));
+              resolve({ ok: false, reply: "No text in Claude response." });
+            }
+          } else {
+            console.error("Unexpected response shape:", JSON.stringify(parsed).substring(0, 200));
+            resolve({ ok: false, reply: "Unexpected response from Claude." });
+          }
+        } catch (e) {
+          console.error("JSON parse error:", e.message, "Raw:", data.substring(0, 200));
+          resolve({ ok: false, reply: "Failed to parse Claude response." });
         }
       });
     });
-    req.on("error", () => resolve("Network error calling Claude API."));
+
+    req.on("error", (e) => {
+      console.error("Network error calling Claude:", e.message);
+      resolve({ ok: false, reply: "Network error: " + e.message });
+    });
+
     req.write(body);
     req.end();
   });
@@ -130,59 +136,26 @@ async function callClaude(messages, systemPrompt) {
 // ── ROUTE HANDLERS ────────────────────────────────────────────────────────────
 
 async function handleChat(req, res) {
+  console.log("POST /chat received");
   const body = await readBody(req);
-  const messages = body.messages || [];
-  const question = body.question || "";
+  console.log("Body keys:", Object.keys(body));
 
-  if (!messages.length && question) {
-    messages.push({ role: "user", content: question });
-  }
+  let messages = body.messages || [];
 
   if (!messages.length) {
+    console.log("No messages in body");
     res.writeHead(400, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "No messages provided" }));
     return;
   }
 
-  // Optionally enrich with README content
-  let systemPrompt = PROJECT_CONTEXT;
-  const lastUserMsg = messages[messages.length - 1]?.content?.toLowerCase() || "";
-  if (lastUserMsg.includes("sql") || lastUserMsg.includes("script") || lastUserMsg.includes("query")) {
-    const sqlContent = await fetchGitHubFile("04_SQL_Script/forensic_risk_queries.sql");
-    if (sqlContent) {
-      systemPrompt += "\n\nSQL SCRIPT CONTENT:\n" + sqlContent.substring(0, 3000);
-    }
-  }
+  console.log("Last user message:", messages[messages.length - 1]?.content?.substring(0, 100));
 
-  const reply = await callClaude(messages, systemPrompt);
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ reply, model: "claude-sonnet-4-20250514" }));
-}
+  const result = await callClaude(messages);
+  console.log("Claude result ok:", result.ok, "reply length:", result.reply.length);
 
-async function handleFiles(req, res) {
   res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({
-    files: REPO_FILES,
-    github: "https://github.com/Hemangit22/Forensic-Risk-Intelligence-Dashboard",
-    tableau: "https://public.tableau.com/app/profile/hemangi7471/viz/ForensicRiskIntelligenceOptimizingAuditPerformanceAndCapitalProtection/Story1",
-  }));
-}
-
-async function handleReadFile(req, res, parsedUrl) {
-  const filePath = parsedUrl.query.path;
-  if (!filePath) {
-    res.writeHead(400, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Missing ?path= parameter" }));
-    return;
-  }
-  const content = await fetchGitHubFile(filePath);
-  if (!content) {
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "File not found on GitHub" }));
-    return;
-  }
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ path: filePath, content: content.substring(0, 10000) }));
+  res.end(JSON.stringify({ reply: result.reply }));
 }
 
 function handleHealth(req, res) {
@@ -190,8 +163,9 @@ function handleHealth(req, res) {
   res.end(JSON.stringify({
     status: "ok",
     server: "Forensic Risk Intelligence MCP Server",
-    version: "1.0.0",
+    version: "2.0.0",
     api_configured: !!ANTHROPIC_API_KEY,
+    model: "claude-haiku-4-5",
   }));
 }
 
@@ -200,30 +174,26 @@ function handleHealth(req, res) {
 const server = http.createServer(async (req, res) => {
   setCORS(res);
 
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  console.log(req.method, pathname);
+
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
     return;
   }
 
-  const parsedUrl = url.parse(req.url, true);
-  const pathname = parsedUrl.pathname;
-
-  if (pathname === "/health" || pathname === "/") {
+  if (pathname === "/" || pathname === "/health") {
     handleHealth(req, res);
   } else if (pathname === "/chat" && req.method === "POST") {
     await handleChat(req, res);
-  } else if (pathname === "/files" && req.method === "GET") {
-    await handleFiles(req, res);
-  } else if (pathname === "/read" && req.method === "GET") {
-    await handleReadFile(req, res, parsedUrl);
   } else {
     res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "Route not found" }));
+    res.end(JSON.stringify({ error: "Route not found: " + pathname }));
   }
 });
 
 server.listen(PORT, () => {
-  console.log("Forensic Risk Intelligence MCP Server running on port " + PORT);
-  console.log("API key configured: " + (!!ANTHROPIC_API_KEY ? "YES" : "NO — set ANTHROPIC_API_KEY env var"));
+  console.log("=== Forensic Risk MCP Server started on port", PORT, "===");
+  console.log("API key configured:", !!ANTHROPIC_API_KEY ? "YES" : "NO");
 });
