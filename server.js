@@ -2,17 +2,16 @@
 
 /**
  * Forensic Risk Intelligence — MCP Server
- * Remote HTTP server for the portfolio chat widget.
+ * Uses Google Gemini API (free tier) instead of Anthropic.
  */
 
 const http = require("http");
 const https = require("https");
 
-const PORT = process.env.PORT || 3000;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || "";
+const PORT = process.env.PORT || 10000;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
-const PROJECT_CONTEXT = `
-You are an expert AI assistant embedded in Hemangi Tandle's data analytics portfolio.
+const PROJECT_CONTEXT = `You are an expert AI assistant embedded in Hemangi Tandle's data analytics portfolio.
 You have deep knowledge of the "Forensic Risk Intelligence: Optimizing Audit Performance and Capital Protection" project.
 
 PROJECT SUMMARY:
@@ -41,8 +40,7 @@ LINKS:
 - GitHub Repo: https://github.com/Hemangit22/Forensic-Risk-Intelligence-Dashboard
 - Large files (Google Drive): https://drive.google.com/drive/folders/1d_VfrOPAdfh32iHmGBcjiKuwK1x0yjhq
 
-Answer questions knowledgeably, enthusiastically, and concisely. Direct visitors to the Tableau or GitHub links when relevant.
-`;
+Answer questions knowledgeably, enthusiastically, and concisely. Direct visitors to the Tableau or GitHub links when relevant. Keep answers under 150 words.`;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 
@@ -63,68 +61,78 @@ function readBody(req) {
   });
 }
 
-async function callClaude(messages) {
-  if (!ANTHROPIC_API_KEY) {
-    return { ok: false, reply: "API key not configured on server." };
+async function callGemini(messages) {
+  if (!GEMINI_API_KEY) {
+    return { ok: false, reply: "Gemini API key not configured on server." };
   }
 
-  const body = JSON.stringify({
-    model: "claude-haiku-4-5",
-    max_tokens: 1024,
-    system: PROJECT_CONTEXT,
-    messages: messages,
+  // Convert messages array to Gemini format
+  // Prepend project context to the first user message
+  const geminiContents = messages.map((msg, index) => {
+    let text = msg.content;
+    if (index === 0 && msg.role === "user") {
+      text = PROJECT_CONTEXT + "\n\nVisitor question: " + msg.content;
+    }
+    return {
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text }],
+    };
   });
 
-  console.log("Calling Claude with", messages.length, "message(s)...");
-  console.log("Request body length:", body.length);
+  const body = JSON.stringify({
+    contents: geminiContents,
+    generationConfig: {
+      maxOutputTokens: 512,
+      temperature: 0.7,
+    },
+  });
+
+  console.log("Calling Gemini with", messages.length, "message(s)...");
 
   return new Promise((resolve) => {
     const options = {
-      hostname: "api.anthropic.com",
-      path: "/v1/messages",
+      hostname: "generativelanguage.googleapis.com",
+      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
         "Content-Length": Buffer.byteLength(body),
       },
     };
 
     const req = https.request(options, (res) => {
       let data = "";
-      console.log("Claude API status:", res.statusCode);
+      console.log("Gemini API status:", res.statusCode);
       res.on("data", (chunk) => (data += chunk));
       res.on("end", () => {
-        console.log("Claude raw response:", data.substring(0, 300));
+        console.log("Gemini raw response:", data.substring(0, 300));
         try {
           const parsed = JSON.parse(data);
+
+          // Check for API errors
           if (parsed.error) {
-            console.error("Claude API error:", parsed.error);
-            resolve({ ok: false, reply: "Claude API error: " + parsed.error.message });
+            console.error("Gemini API error:", parsed.error.message);
+            resolve({ ok: false, reply: "Gemini API error: " + parsed.error.message });
             return;
           }
-          if (parsed.content && parsed.content.length > 0) {
-            const textBlock = parsed.content.find(b => b.type === "text");
-            if (textBlock) {
-              resolve({ ok: true, reply: textBlock.text });
-            } else {
-              console.error("No text block found in content:", JSON.stringify(parsed.content));
-              resolve({ ok: false, reply: "No text in Claude response." });
-            }
+
+          // Extract text from Gemini response structure
+          const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (text) {
+            resolve({ ok: true, reply: text });
           } else {
-            console.error("Unexpected response shape:", JSON.stringify(parsed).substring(0, 200));
-            resolve({ ok: false, reply: "Unexpected response from Claude." });
+            console.error("No text in Gemini response:", JSON.stringify(parsed).substring(0, 300));
+            resolve({ ok: false, reply: "No response text from Gemini." });
           }
         } catch (e) {
-          console.error("JSON parse error:", e.message, "Raw:", data.substring(0, 200));
-          resolve({ ok: false, reply: "Failed to parse Claude response." });
+          console.error("Parse error:", e.message);
+          resolve({ ok: false, reply: "Failed to parse Gemini response." });
         }
       });
     });
 
     req.on("error", (e) => {
-      console.error("Network error calling Claude:", e.message);
+      console.error("Network error:", e.message);
       resolve({ ok: false, reply: "Network error: " + e.message });
     });
 
@@ -138,12 +146,9 @@ async function callClaude(messages) {
 async function handleChat(req, res) {
   console.log("POST /chat received");
   const body = await readBody(req);
-  console.log("Body keys:", Object.keys(body));
 
   let messages = body.messages || [];
-
   if (!messages.length) {
-    console.log("No messages in body");
     res.writeHead(400, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "No messages provided" }));
     return;
@@ -151,8 +156,8 @@ async function handleChat(req, res) {
 
   console.log("Last user message:", messages[messages.length - 1]?.content?.substring(0, 100));
 
-  const result = await callClaude(messages);
-  console.log("Claude result ok:", result.ok, "reply length:", result.reply.length);
+  const result = await callGemini(messages);
+  console.log("Gemini result ok:", result.ok, "| reply length:", result.reply.length);
 
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ reply: result.reply }));
@@ -163,9 +168,9 @@ function handleHealth(req, res) {
   res.end(JSON.stringify({
     status: "ok",
     server: "Forensic Risk Intelligence MCP Server",
-    version: "2.0.0",
-    api_configured: !!ANTHROPIC_API_KEY,
-    model: "claude-haiku-4-5",
+    version: "3.0.0",
+    api: "Google Gemini (free tier)",
+    api_configured: !!GEMINI_API_KEY,
   }));
 }
 
@@ -195,5 +200,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log("=== Forensic Risk MCP Server started on port", PORT, "===");
-  console.log("API key configured:", !!ANTHROPIC_API_KEY ? "YES" : "NO");
+  console.log("API: Google Gemini | Key configured:", !!GEMINI_API_KEY ? "YES" : "NO");
 });
